@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mall.mapper.OrderMapper">
+
+    <resultMap id="OrderMap" type="com.mall.domain.Order">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="totalCent" column="total_cent"/>
+        <result property="status" column="status"/>
+        <result property="idempotentKey" column="idempotent_key"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insertOrder" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO orders (user_id, total_cent, status, idempotent_key)
+        VALUES (#{userId}, #{totalCent}, #{status}, #{idempotentKey})
+    </insert>
+
+    <insert id="insertItem" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO order_items (order_id, product_id, qty, price_cent)
+        VALUES (#{orderId}, #{productId}, #{qty}, #{priceCent})
+    </insert>
+
+    <select id="listByUser" resultMap="OrderMap">
+        SELECT * FROM orders WHERE user_id = #{userId} ORDER BY id DESC LIMIT #{limit}
+    </select>
+
+    <select id="findByUserAndIdempotentKey" resultMap="OrderMap">
+        SELECT * FROM orders WHERE user_id = #{userId} AND idempotent_key = #{key}
+    </select>
+
+    <resultMap id="OrderItemMap" type="com.mall.domain.OrderItem">
+        <id property="id" column="id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="productId" column="product_id"/>
+        <result property="qty" column="qty"/>
+        <result property="priceCent" column="price_cent"/>
+    </resultMap>
+
+    <select id="listItemsByOrderId" resultMap="OrderItemMap">
+        SELECT * FROM order_items WHERE order_id = #{orderId} ORDER BY id
+    </select>
+</mapper>

@@ -1,0 +1,14 @@
+spring:
+  jpa:
+    open-in-view: false
+
+mall:
+  jwt:
+    secret: test-jwt-secret-at-least-32-bytes-long!!
+  rate-limit:
+    orders-per-minute: 10000
+
+logging:
+  level:
+    root: WARN
+    com.mall: INFO
