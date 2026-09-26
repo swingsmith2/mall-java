@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mall.mapper.OutboxMapper">
+
+    <resultMap id="OutboxMap" type="com.mall.domain.OutboxEvent">
+        <id property="id" column="id"/>
+        <result property="eventType" column="event_type"/>
+        <result property="aggregateId" column="aggregate_id"/>
+        <result property="payload" column="payload"/>
+        <result property="status" column="status"/>
+        <result property="attempts" column="attempts"/>
+        <result property="nextAttemptAt" column="next_attempt_at"/>
+        <result property="lastError" column="last_error"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="sentAt" column="sent_at"/>
+    </resultMap>
+
+    <insert id="insert">
+        INSERT INTO outbox_events (event_type, aggregate_id, payload)
+        VALUES (#{eventType}, #{aggregateId}, #{payload})
+    </insert>
+
+    <select id="claim" resultMap="OutboxMap">
+        UPDATE outbox_events
+        SET status = 'PROCESSING',
+            next_attempt_at = NOW() + (#{leaseSeconds} * INTERVAL '1 second')
+        WHERE id IN (
+            SELECT id FROM outbox_events
+            WHERE status IN ('PENDING', 'PROCESSING')
+              AND next_attempt_at &lt;= NOW()
+            ORDER BY id
+            LIMIT #{limit}
+            FOR UPDATE SKIP LOCKED
+        )
+        RETURNING id, event_type, aggregate_id, payload, status, attempts,
+                  next_attempt_at, last_error, created_at, sent_at
+    </select>
+
+    <update id="markSent">
+        UPDATE outbox_events
+        SET status = 'SENT', sent_at = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <update id="markRetry">
+        UPDATE outbox_events
+        SET attempts = attempts + 1,
+            last_error = #{error},
+            status = CASE WHEN attempts + 1 &gt;= #{maxAttempts} THEN 'FAILED' ELSE 'PENDING' END,
+            next_attempt_at = NOW() + (#{delaySeconds} * INTERVAL '1 second')
+        WHERE id = #{id}
+    </update>
+
+    <select id="countByStatus" resultType="int">
+        SELECT COUNT(*) FROM outbox_events WHERE status = #{status}
+    </select>
+
+    <select id="countStalePending" resultType="int">
+        SELECT COUNT(*) FROM outbox_events
+        WHERE status = 'PENDING' AND created_at &lt; #{staleBefore}
+    </select>
+
+    <select id="listByAggregate" resultMap="OutboxMap">
+        SELECT * FROM outbox_events WHERE aggregate_id = #{aggregateId} ORDER BY id
+    </select>
+</mapper>

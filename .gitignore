@@ -1,5 +1,7 @@
 target/
 .idea/
+.env.local
+backups/
 *.iml
 .project
 .classpath

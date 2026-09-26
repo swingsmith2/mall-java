@@ -3,10 +3,17 @@ spring:
     open-in-view: false
 
 mall:
+  jobs:
+    enabled: false
   jwt:
     secret: test-jwt-secret-at-least-32-bytes-long!!
+  payment:
+    callback-secret: test-pay-callback-secret-32-bytes!!
   rate-limit:
     orders-per-minute: 10000
+    logins-per-minute: 10000
+  order:
+    pay-timeout: 30m
 
 logging:
   level:

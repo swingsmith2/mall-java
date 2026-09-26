@@ -17,5 +17,7 @@ public interface ProductMapper {
 
     int decreaseStock(@Param("id") Long id, @Param("qty") int qty);
 
+    int increaseStock(@Param("id") Long id, @Param("qty") int qty);
+
     int insert(Product product);
 }

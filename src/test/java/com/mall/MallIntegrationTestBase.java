@@ -23,7 +23,8 @@ public abstract class MallIntegrationTestBase {
 
     @Container
     static final GenericContainer<?> REDIS = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
-            .withExposedPorts(6379);
+            .withExposedPorts(6379)
+            .withCommand("redis-server", "--requirepass", "test-redis-password");
 
     @DynamicPropertySource
     static void registerProps(DynamicPropertyRegistry r) {
@@ -32,5 +33,6 @@ public abstract class MallIntegrationTestBase {
         r.add("spring.datasource.password", POSTGRES::getPassword);
         r.add("spring.data.redis.host", REDIS::getHost);
         r.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
+        r.add("spring.data.redis.password", () -> "test-redis-password");
     }
 }

@@ -9,13 +9,24 @@
         <result property="totalCent" column="total_cent"/>
         <result property="status" column="status"/>
         <result property="idempotentKey" column="idempotent_key"/>
+        <result property="seckillActivityId" column="seckill_activity_id"/>
         <result property="createdAt" column="created_at"/>
+        <result property="paidAt" column="paid_at"/>
+        <result property="cancelledAt" column="cancelled_at"/>
     </resultMap>
 
-    <insert id="insertOrder" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO orders (user_id, total_cent, status, idempotent_key)
-        VALUES (#{userId}, #{totalCent}, #{status}, #{idempotentKey})
-    </insert>
+    <select id="insertOrder" resultType="long">
+        INSERT INTO orders (user_id, total_cent, status, idempotent_key, seckill_activity_id)
+        VALUES (#{userId}, #{totalCent}, #{status}, #{idempotentKey}, #{seckillActivityId})
+        RETURNING id
+    </select>
+
+    <select id="insertOrderIgnoreConflict" resultType="java.lang.Long">
+        INSERT INTO orders (user_id, total_cent, status, idempotent_key, seckill_activity_id)
+        VALUES (#{userId}, #{totalCent}, #{status}, #{idempotentKey}, #{seckillActivityId})
+        ON CONFLICT (user_id, idempotent_key) DO NOTHING
+        RETURNING id
+    </select>
 
     <insert id="insertItem" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO order_items (order_id, product_id, qty, price_cent)
@@ -24,6 +35,14 @@
 
     <select id="listByUser" resultMap="OrderMap">
         SELECT * FROM orders WHERE user_id = #{userId} ORDER BY id DESC LIMIT #{limit}
+    </select>
+
+    <select id="findById" resultMap="OrderMap">
+        SELECT * FROM orders WHERE id = #{id}
+    </select>
+
+    <select id="findByIdForUpdate" resultMap="OrderMap">
+        SELECT * FROM orders WHERE id = #{id} FOR UPDATE
     </select>
 
     <select id="findByUserAndIdempotentKey" resultMap="OrderMap">
@@ -40,5 +59,32 @@
 
     <select id="listItemsByOrderId" resultMap="OrderItemMap">
         SELECT * FROM order_items WHERE order_id = #{orderId} ORDER BY id
+    </select>
+
+    <update id="markPaid">
+        UPDATE orders
+        SET status = 'PAID', paid_at = NOW()
+        WHERE id = #{id} AND status = 'CREATED'
+    </update>
+
+    <update id="markCancelled">
+        UPDATE orders
+        SET status = 'CANCELLED', cancelled_at = NOW()
+        WHERE id = #{id} AND status = 'CREATED'
+    </update>
+
+    <select id="sumActiveSeckillQty" resultType="int">
+        SELECT COALESCE(SUM(oi.qty), 0)
+        FROM order_items oi
+        JOIN orders o ON o.id = oi.order_id
+        WHERE o.seckill_activity_id = #{activityId}
+          AND o.status &lt;&gt; 'CANCELLED'
+    </select>
+
+    <select id="listUnpaidIdsCreatedBefore" resultType="long">
+        SELECT id FROM orders
+        WHERE status = 'CREATED' AND created_at &lt; #{deadline}
+        ORDER BY id
+        LIMIT #{limit}
     </select>
 </mapper>

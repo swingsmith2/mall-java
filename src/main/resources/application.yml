@@ -15,6 +15,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:mall-redis-dev}
       timeout: 2s
   cache:
     type: redis
@@ -40,14 +41,37 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 mall:
+  jobs:
+    enabled: true
   jwt:
-    secret: ${JWT_SECRET:change-me-to-a-long-random-secret-at-least-256-bits}
+    secret: ${JWT_SECRET:}
     expiration-ms: 86400000
+  payment:
+    callback-secret: ${PAY_CALLBACK_SECRET:}
   rate-limit:
     orders-per-minute: 30
+    logins-per-minute: 20
+  order:
+    pay-timeout: 15m
+    close-scan-ms: 5000
+  outbox:
+    poll-ms: 1000
+    max-attempts: 8
+    claim-lease-seconds: 30
+  alert:
+    scan-ms: 15000
+    pending-stale: 60s
+  seckill:
+    poll-ms: 200
+    max-attempts: 5
+    result-ttl: 24h
 
 logging:
   level:

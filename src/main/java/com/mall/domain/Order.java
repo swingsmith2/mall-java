@@ -11,5 +11,8 @@ public class Order {
     private Long totalCent;
     private String status;
     private String idempotentKey;
+    private Long seckillActivityId;
     private Instant createdAt;
+    private Instant paidAt;
+    private Instant cancelledAt;
 }

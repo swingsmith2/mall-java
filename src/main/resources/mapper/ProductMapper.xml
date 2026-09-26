@@ -37,6 +37,14 @@
         WHERE id = #{id} AND stock >= #{qty} AND status = 1
     </update>
 
+    <update id="increaseStock">
+        UPDATE products
+        SET stock = stock + #{qty},
+            version = version + 1,
+            updated_at = NOW()
+        WHERE id = #{id}
+    </update>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO products (category_id, name, description, price_cent, stock, status)
         VALUES (#{categoryId}, #{name}, #{description}, #{priceCent}, #{stock}, #{status})

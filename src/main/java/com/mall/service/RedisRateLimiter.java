@@ -1,5 +1,6 @@
 package com.mall.service;
 
+import com.mall.common.BusinessException;
 import com.mall.config.MallProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -14,18 +15,21 @@ public class RedisRateLimiter {
     private final StringRedisTemplate redis;
     private final MallProperties mallProperties;
 
-    /**
-     * 滑动窗口近似：每分钟允许的次数，基于 Redis INCR + TTL。
-     */
     public void checkOrderLimit(String userId) {
-        String key = "rl:order:" + userId;
+        hit("rl:order:" + userId, mallProperties.getRateLimit().getOrdersPerMinute(), "下单过于频繁，请稍后再试");
+    }
+
+    public void checkLoginLimit(String username) {
+        hit("rl:login:" + username, mallProperties.getRateLimit().getLoginsPerMinute(), "登录过于频繁，请稍后再试");
+    }
+
+    private void hit(String key, int max, String message) {
         Long n = redis.opsForValue().increment(key);
-        if (n != null && n == 1) {
+        if (n != null && (n == 1L || redis.getExpire(key) < 0)) {
             redis.expire(key, Duration.ofMinutes(1));
         }
-        int max = mallProperties.getRateLimit().getOrdersPerMinute();
         if (n != null && n > max) {
-            throw new com.mall.common.BusinessException(429, "下单过于频繁，请稍后再试");
+            throw new BusinessException(429, message);
         }
     }
 }

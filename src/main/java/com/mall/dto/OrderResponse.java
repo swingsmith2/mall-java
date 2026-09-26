@@ -13,6 +13,9 @@ public class OrderResponse {
     private Long totalCent;
     private String status;
     private Instant createdAt;
+    private Instant paidAt;
+    private Instant cancelledAt;
+    private Instant payDeadline;
     private List<OrderLineResponse> lines;
 
     @Data

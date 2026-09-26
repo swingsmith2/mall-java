@@ -40,9 +40,7 @@ public class JwtService {
     private SecretKey signingKey() {
         byte[] bytes = mallProperties.getJwt().getSecret().getBytes(StandardCharsets.UTF_8);
         if (bytes.length < 32) {
-            byte[] padded = new byte[32];
-            System.arraycopy(bytes, 0, padded, 0, Math.min(bytes.length, 32));
-            bytes = padded;
+            throw new IllegalStateException("JWT 密钥至少 32 字节");
         }
         return Keys.hmacShaKeyFor(bytes);
     }

@@ -20,6 +20,7 @@ public class AuthService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RedisRateLimiter rateLimiter;
 
     @Transactional
     public void register(RegisterRequest req) {
@@ -34,6 +35,7 @@ public class AuthService {
     }
 
     public TokenResponse login(LoginRequest req) {
+        rateLimiter.checkLoginLimit(req.getUsername());
         User u = userMapper.findByUsername(req.getUsername());
         if (u == null || !passwordEncoder.matches(req.getPassword(), u.getPassword())) {
             throw new BadCredentialsException("用户名或密码错误");

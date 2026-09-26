@@ -4,16 +4,32 @@ services:
     environment:
       POSTGRES_DB: mall
       POSTGRES_USER: mall
-      POSTGRES_PASSWORD: mall
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-mall}
     ports:
       - "5432:5432"
     volumes:
       - mall_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mall -d mall"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   redis:
     image: redis:7-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-mall-redis-dev}
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-mall-redis-dev}"]
     ports:
       - "6379:6379"
+    volumes:
+      - mall_redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
 volumes:
   mall_pg_data:
+  mall_redis_data:
