@@ -73,6 +73,12 @@
         WHERE id = #{id} AND status = 'CREATED'
     </update>
 
+    <update id="markRefunded">
+        UPDATE orders
+        SET status = 'REFUNDED', cancelled_at = NOW()
+        WHERE id = #{id} AND status = 'PAID'
+    </update>
+
     <select id="sumActiveSeckillQty" resultType="int">
         SELECT COALESCE(SUM(oi.qty), 0)
         FROM order_items oi

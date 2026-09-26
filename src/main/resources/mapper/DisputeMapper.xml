@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mall.mapper.DisputeMapper">
+
+    <resultMap id="DisputeMap" type="com.mall.domain.Dispute">
+        <id property="id" column="id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="openerId" column="opener_id"/>
+        <result property="reason" column="reason"/>
+        <result property="status" column="status"/>
+        <result property="resolution" column="resolution"/>
+        <result property="resolutionNote" column="resolution_note"/>
+        <result property="handlerId" column="handler_id"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="resolvedAt" column="resolved_at"/>
+    </resultMap>
+
+    <select id="insert" resultType="long">
+        INSERT INTO disputes (order_id, opener_id, reason, status)
+        VALUES (#{orderId}, #{openerId}, #{reason}, #{status})
+        RETURNING id
+    </select>
+
+    <select id="findById" resultMap="DisputeMap">
+        SELECT * FROM disputes WHERE id = #{id}
+    </select>
+
+    <select id="findOpenByOrderId" resultMap="DisputeMap">
+        SELECT * FROM disputes WHERE order_id = #{orderId} AND status = 'OPEN'
+    </select>
+
+    <select id="listByStatus" resultMap="DisputeMap">
+        SELECT * FROM disputes WHERE status = #{status} ORDER BY id
+    </select>
+
+    <update id="resolve">
+        UPDATE disputes
+        SET status = 'RESOLVED',
+            resolution = #{resolution},
+            resolution_note = #{note},
+            handler_id = #{handlerId},
+            resolved_at = NOW()
+        WHERE id = #{id} AND status = 'OPEN'
+    </update>
+
+    <select id="countMerchantOrder" resultType="int">
+        SELECT COUNT(*)
+        FROM order_items oi
+        JOIN products p ON p.id = oi.product_id
+        JOIN shops s ON s.id = p.shop_id
+        WHERE oi.order_id = #{orderId} AND s.owner_id = #{ownerId}
+    </select>
+</mapper>

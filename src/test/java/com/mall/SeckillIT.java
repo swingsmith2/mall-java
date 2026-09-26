@@ -37,11 +37,12 @@ class SeckillIT extends MallIntegrationTestBase {
     @Test
     void redisPreDeductThenAsyncPersistAndCancelReturnsStock() throws Exception {
         HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
-        String admin = login(client, "admin", "demo123");
-        int before = stock(client, 2);
-        long activityId = createActivity(client, admin, 2, 5);
+        String merchant = registerMerchant(client);
+        long productId = createProduct(client, merchant, 30);
+        int before = stock(client, productId);
+        long activityId = createActivity(client, merchant, productId, 5);
 
-        assertThat(stock(client, 2)).isEqualTo(before - 5);
+        assertThat(stock(client, productId)).isEqualTo(before - 5);
         JsonNode activity = getJson(client, "GET", "/api/seckill/activities/" + activityId, null, null);
         assertThat(activity.path("data").path("remaining").asInt()).isEqualTo(5);
 
@@ -81,7 +82,7 @@ class SeckillIT extends MallIntegrationTestBase {
         assertThat(done.path("data").path("status").asText()).isEqualTo("SUCCESS");
         long orderId = done.path("data").path("orderId").asLong();
         assertThat(orderId).isPositive();
-        assertThat(stock(client, 2)).isEqualTo(before - 5);
+        assertThat(stock(client, productId)).isEqualTo(before - 5);
 
         HttpResponse<String> cancelled = send(client, "POST", "/api/orders/" + orderId + "/cancel", first.tokenUser, "");
         assertThat(cancelled.statusCode()).as(cancelled.body()).isEqualTo(200);
@@ -93,7 +94,7 @@ class SeckillIT extends MallIntegrationTestBase {
                 lateUser, "{\"qty\":1,\"idempotentKey\":\"back-" + UUID.randomUUID() + "\"}");
         assertThat(recovered.statusCode()).as(recovered.body()).isEqualTo(200);
         assertThat(seckillOrderWorker.poll()).isEqualTo(1);
-        assertThat(stock(client, 2)).isEqualTo(before - 5);
+        assertThat(stock(client, productId)).isEqualTo(before - 5);
         JsonNode closedRemaining = getJson(client, "GET", "/api/seckill/activities/" + activityId, null, null);
         assertThat(closedRemaining.path("data").path("remaining").asInt()).isZero();
     }
@@ -117,13 +118,28 @@ class SeckillIT extends MallIntegrationTestBase {
 
     private final long[] activityIdHolder = new long[1];
 
+    private String registerMerchant(HttpClient client) throws Exception {
+        String username = "skm_" + UUID.randomUUID().toString().replace("-", "");
+        HttpResponse<String> res = send(client, "POST", "/api/merchant/register", null,
+                "{\"username\":\"" + username + "\",\"password\":\"demo123456\",\"shopName\":\"秒杀店\",\"description\":\"it\"}");
+        assertThat(res.statusCode()).as(res.body()).isEqualTo(200);
+        return objectMapper.readTree(res.body()).path("data").path("token").asText();
+    }
+
+    private long createProduct(HttpClient client, String merchant, int stock) throws Exception {
+        HttpResponse<String> res = send(client, "POST", "/api/merchant/products", merchant,
+                "{\"categoryId\":1,\"name\":\"秒杀品\",\"priceCent\":1000,\"stock\":" + stock + "}");
+        assertThat(res.statusCode()).as(res.body()).isEqualTo(200);
+        return objectMapper.readTree(res.body()).path("data").asLong();
+    }
+
     private long createActivity(HttpClient client, String admin, long productId, int seckillStock) throws Exception {
         String body = """
                 {"productId":%d,"seckillPriceCent":1000,"stock":%d,"perUserLimit":1,"startAt":"%s","endAt":"%s"}
                 """.formatted(productId, seckillStock,
                 Instant.now().minusSeconds(5),
                 Instant.now().plusSeconds(3600));
-        HttpResponse<String> res = send(client, "POST", "/api/admin/seckill/activities", admin, body);
+        HttpResponse<String> res = send(client, "POST", "/api/merchant/seckill/activities", admin, body);
         assertThat(res.statusCode()).as(res.body()).isEqualTo(200);
         long id = objectMapper.readTree(res.body()).path("data").path("id").asLong();
         activityIdHolder[0] = id;

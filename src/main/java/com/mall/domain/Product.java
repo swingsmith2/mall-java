@@ -7,6 +7,7 @@ import java.time.Instant;
 @Data
 public class Product {
     private Long id;
+    private Long shopId;
     private Long categoryId;
     private String name;
     private String description;

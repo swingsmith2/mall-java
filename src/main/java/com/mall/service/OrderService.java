@@ -10,6 +10,7 @@ import com.mall.domain.OrderStatus;
 import com.mall.domain.Payment;
 import com.mall.domain.Product;
 import com.mall.domain.SeckillActivity;
+import com.mall.domain.Shop;
 import com.mall.domain.SeckillQueueMessage;
 import com.mall.domain.User;
 import com.mall.dto.OrderResponse;
@@ -19,6 +20,7 @@ import com.mall.mapper.OrderMapper;
 import com.mall.mapper.PaymentMapper;
 import com.mall.mapper.ProductMapper;
 import com.mall.mapper.SeckillActivityMapper;
+import com.mall.mapper.ShopMapper;
 import com.mall.mapper.UserMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,7 @@ public class OrderService {
 
     private final UserMapper userMapper;
     private final ProductMapper productMapper;
+    private final ShopMapper shopMapper;
     private final OrderMapper orderMapper;
     private final PaymentMapper paymentMapper;
     private final ProductService productService;
@@ -76,6 +79,12 @@ public class OrderService {
             Product p = productMapper.findById(line.getProductId());
             if (p == null || p.getStatus() == null || p.getStatus() != 1) {
                 throw new BusinessException("商品不存在或已下架: " + line.getProductId());
+            }
+            if (p.getShopId() != null) {
+                Shop shop = shopMapper.findById(p.getShopId());
+                if (shop == null || !"OPEN".equals(shop.getStatus())) {
+                    throw new BusinessException("店铺未营业");
+                }
             }
             if (p.getStock() < line.getQty()) {
                 throw new BusinessException("库存不足: " + p.getName());
@@ -205,11 +214,47 @@ public class OrderService {
         return true;
     }
 
+    public Order requireOwned(Long orderId) {
+        User user = currentUser();
+        Order order = orderMapper.findById(orderId);
+        if (order == null || !order.getUserId().equals(user.getId())) {
+            throw new BusinessException(404, "订单不存在");
+        }
+        return order;
+    }
+
+    @Transactional
+    public OrderResponse refundPaid(Long orderId) {
+        Order order = orderMapper.findByIdForUpdate(orderId);
+        if (order == null) {
+            throw new BusinessException(404, "订单不存在");
+        }
+        if (!OrderStatus.PAID.name().equals(order.getStatus())) {
+            throw new BusinessException(409, "只有已支付订单可以退款");
+        }
+        int updated = orderMapper.markRefunded(order.getId());
+        if (updated == 0) {
+            throw new BusinessException(409, "订单状态已变化");
+        }
+        restoreStock(order);
+        order.setStatus(OrderStatus.REFUNDED.name());
+        outboxService.enqueue("ORDER_REFUNDED", order.getId(), payload(order, order.getUserId(), "REFUND"));
+        AfterCommit.run(() -> meterRegistry.counter("mall.order.refunded").increment());
+        return toResponse(orderMapper.findById(orderId), orderMapper.listItemsByOrderId(orderId));
+    }
+
     private void restoreAndCancel(Order order, String reason) {
         int updated = orderMapper.markCancelled(order.getId());
         if (updated == 0) {
             throw new BusinessException(409, "订单状态已变化");
         }
+        restoreStock(order);
+        order.setStatus(OrderStatus.CANCELLED.name());
+        outboxService.enqueue("ORDER_CANCELLED", order.getId(), payload(order, order.getUserId(), reason));
+        AfterCommit.run(() -> meterRegistry.counter("mall.order.cancelled").increment());
+    }
+
+    private void restoreStock(Order order) {
         boolean seckillOpen = seckillStillRunning(order);
         for (OrderItem item : orderMapper.listItemsByOrderId(order.getId())) {
             if (seckillOpen) {
@@ -229,9 +274,6 @@ public class OrderService {
                 AfterCommit.run(() -> productService.evictProductCache(productId));
             }
         }
-        order.setStatus(OrderStatus.CANCELLED.name());
-        outboxService.enqueue("ORDER_CANCELLED", order.getId(), payload(order, order.getUserId(), reason));
-        AfterCommit.run(() -> meterRegistry.counter("mall.order.cancelled").increment());
     }
 
     @Transactional

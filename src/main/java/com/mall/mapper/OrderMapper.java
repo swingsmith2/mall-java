@@ -31,6 +31,8 @@ public interface OrderMapper {
 
     int markCancelled(@Param("id") Long id);
 
+    int markRefunded(@Param("id") Long id);
+
     int sumActiveSeckillQty(@Param("activityId") Long activityId);
 
     List<Long> listUnpaidIdsCreatedBefore(@Param("deadline") Instant deadline, @Param("limit") int limit);

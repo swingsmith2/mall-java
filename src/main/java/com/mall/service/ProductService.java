@@ -1,9 +1,11 @@
 package com.mall.service;
 
 import com.mall.domain.Product;
+import com.mall.domain.Shop;
 import com.mall.dto.ProductCreateRequest;
 import com.mall.dto.ProductSummaryResponse;
 import com.mall.mapper.ProductMapper;
+import com.mall.mapper.ShopMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -17,12 +19,19 @@ import java.util.List;
 public class ProductService {
 
     private final ProductMapper productMapper;
+    private final ShopMapper shopMapper;
 
     @Cacheable(value = "products", key = "#id", unless = "#result == null || #result.status != 1")
     public Product getOnSaleById(Long id) {
         Product p = productMapper.findById(id);
         if (p == null || p.getStatus() == null || p.getStatus() != 1) {
             return null;
+        }
+        if (p.getShopId() != null) {
+            Shop shop = shopMapper.findById(p.getShopId());
+            if (shop == null || !"OPEN".equals(shop.getStatus())) {
+                return null;
+            }
         }
         return p;
     }
@@ -44,9 +53,15 @@ public class ProductService {
     }
 
     @Transactional
-    @CacheEvict(value = "products", key = "#result.id")
     public Product create(ProductCreateRequest req) {
+        return createForShop(req, null);
+    }
+
+    @Transactional
+    @CacheEvict(value = "products", key = "#result.id")
+    public Product createForShop(ProductCreateRequest req, Long shopId) {
         Product p = new Product();
+        p.setShopId(shopId);
         p.setCategoryId(req.getCategoryId());
         p.setName(req.getName());
         p.setDescription(req.getDescription());

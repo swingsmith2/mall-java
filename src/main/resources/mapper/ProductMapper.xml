@@ -5,6 +5,7 @@
 
     <resultMap id="ProductMap" type="com.mall.domain.Product">
         <id property="id" column="id"/>
+        <result property="shopId" column="shop_id"/>
         <result property="categoryId" column="category_id"/>
         <result property="name" column="name"/>
         <result property="description" column="description"/>
@@ -20,13 +21,30 @@
         SELECT * FROM products WHERE id = #{id}
     </select>
 
+    <sql id="onSaleShop">
+        status = 1
+        AND (
+            shop_id IS NULL
+            OR EXISTS (
+                SELECT 1 FROM shops s
+                WHERE s.id = products.shop_id AND s.status = 'OPEN'
+            )
+        )
+    </sql>
+
     <select id="listOnSale" resultMap="ProductMap">
-        SELECT * FROM products WHERE status = 1 ORDER BY id
+        SELECT * FROM products
+        WHERE <include refid="onSaleShop"/>
+        ORDER BY id
         OFFSET #{offset} LIMIT #{limit}
     </select>
 
     <select id="countOnSale" resultType="int">
-        SELECT COUNT(*) FROM products WHERE status = 1
+        SELECT COUNT(*) FROM products WHERE <include refid="onSaleShop"/>
+    </select>
+
+    <select id="listIdsByShop" resultType="long">
+        SELECT id FROM products WHERE shop_id = #{shopId}
     </select>
 
     <update id="decreaseStock">
@@ -34,7 +52,7 @@
         SET stock = stock - #{qty},
             version = version + 1,
             updated_at = NOW()
-        WHERE id = #{id} AND stock >= #{qty} AND status = 1
+        WHERE id = #{id} AND stock >= #{qty} AND <include refid="onSaleShop"/>
     </update>
 
     <update id="increaseStock">
@@ -46,7 +64,7 @@
     </update>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO products (category_id, name, description, price_cent, stock, status)
-        VALUES (#{categoryId}, #{name}, #{description}, #{priceCent}, #{stock}, #{status})
+        INSERT INTO products (shop_id, category_id, name, description, price_cent, stock, status)
+        VALUES (#{shopId}, #{categoryId}, #{name}, #{description}, #{priceCent}, #{stock}, #{status})
     </insert>
 </mapper>

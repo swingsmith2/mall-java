@@ -15,6 +15,8 @@ public interface ProductMapper {
 
     int countOnSale();
 
+    List<Long> listIdsByShop(@Param("shopId") Long shopId);
+
     int decreaseStock(@Param("id") Long id, @Param("qty") int qty);
 
     int increaseStock(@Param("id") Long id, @Param("qty") int qty);

@@ -2,7 +2,9 @@ package com.mall.service;
 
 import com.mall.common.AfterCommit;
 import com.mall.common.BusinessException;
+import com.mall.domain.Product;
 import com.mall.domain.SeckillActivity;
+import com.mall.domain.Shop;
 import com.mall.domain.User;
 import com.mall.dto.SeckillAcceptResponse;
 import com.mall.dto.SeckillActivityResponse;
@@ -10,6 +12,7 @@ import com.mall.dto.SeckillCreateRequest;
 import com.mall.dto.SeckillOrderRequest;
 import com.mall.mapper.ProductMapper;
 import com.mall.mapper.SeckillActivityMapper;
+import com.mall.mapper.ShopMapper;
 import com.mall.mapper.UserMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +31,7 @@ public class SeckillService {
 
     private final SeckillActivityMapper activityMapper;
     private final ProductMapper productMapper;
+    private final ShopMapper shopMapper;
     private final UserMapper userMapper;
     private final ProductService productService;
     private final SeckillInventory inventory;
@@ -49,6 +53,16 @@ public class SeckillService {
     public SeckillActivityResponse create(SeckillCreateRequest req) {
         if (!req.getEndAt().isAfter(req.getStartAt())) {
             throw new BusinessException("结束时间必须晚于开始时间");
+        }
+        User owner = currentUser();
+        Shop shop = shopMapper.findByOwnerId(owner.getId());
+        Product product = productMapper.findById(req.getProductId());
+        if (shop == null || product == null || product.getShopId() == null
+                || !shop.getId().equals(product.getShopId())) {
+            throw new BusinessException(403, "只能为自己店铺的商品创建秒杀");
+        }
+        if (!"OPEN".equals(shop.getStatus())) {
+            throw new BusinessException("店铺未营业");
         }
         int limit = req.getPerUserLimit() == null ? 1 : req.getPerUserLimit();
         int updated = productMapper.decreaseStock(req.getProductId(), req.getStock());
@@ -74,6 +88,11 @@ public class SeckillService {
     }
 
     public SeckillAcceptResponse place(long activityId, SeckillOrderRequest req) {
+        SeckillActivity activity = activityMapper.findById(activityId);
+        if (activity == null) {
+            throw new BusinessException(404, "秒杀活动不存在");
+        }
+        assertShopOpen(activity.getProductId());
         User user = currentUser();
         String idem = StringUtils.hasText(req.getIdempotentKey())
                 ? req.getIdempotentKey()
@@ -171,6 +190,17 @@ public class SeckillService {
                 .perUserLimit(activity.getPerUserLimit())
                 .status(activity.getStatus())
                 .build();
+    }
+
+    private void assertShopOpen(Long productId) {
+        Product product = productMapper.findById(productId);
+        if (product == null || product.getShopId() == null) {
+            return;
+        }
+        Shop shop = shopMapper.findById(product.getShopId());
+        if (shop == null || !"OPEN".equals(shop.getStatus())) {
+            throw new BusinessException("店铺未营业");
+        }
     }
 
     private User currentUser() {
